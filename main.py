@@ -1,7 +1,7 @@
 import numpy as np
+from copy import deepcopy
 import math
-
-MAX_ITER = 100
+import heapq
 
 
 def read_input():
@@ -59,16 +59,76 @@ def calculate_goal_state(length, zero_goal_position, n):
 
 
 def iterative_deepening_a_star(board, goal):
-    for i in range(0, MAX_ITER):
-        found, solution = search(board, goal, i)
+    max_fscore = get_heuristic(board, goal)
+    path = [board]
+    while True:
+        found, fscore = search(goal, path, 0, max_fscore)
         if found:
-            return solution
-    return []
+            return True, path, max_fscore
+        if fscore == math.inf:
+            return False, [], 0
+        max_fscore = fscore
+        
+
+unified_cost = 1
 
 
-def search(board, goal, max_iterations):
-    found, solution = False, []
-    return found, solution
+def search(goal, path, g, max_fscore):     
+    state = path.pop()
+    fscore = g + get_heuristic(state, goal)
+    if fscore > max_fscore:
+        return False, fscore
+    if np.array_equal(state, goal):
+        return True, max_fscore
+    
+    min = math.inf
+    for s in successors(state, goal):
+        if s not in path:
+            path.append(s[1])
+            found, f = search(goal, path, g + 1, max_fscore)
+            if found:
+                return True, max_fscore
+            if f < min:
+                min = f
+            path.pop()
+    return min
+                
+
+def successors(board, goal):
+    zero_position = find_element_position(board, 0)
+    possible_routes = get_neighbours(len(board[0]), zero_position)
+    states = swap(board, possible_routes, zero_position)
+    ss = [(get_heuristic(state, goal), state) for state in states]
+    heapq.heapify(ss)
+    return ss
+
+
+def swap(board, possible_routes, zero_position):
+    states = []
+    for route in possible_routes:
+        state = deepcopy(board)
+        state[route[0]][route[1]], state[zero_position[0]][zero_position[1]] = state[zero_position[0]][zero_position[1]], state[route[0]][route[1]]
+        states.append(state)
+    return states
+   
+    
+heuristics = {}
+
+    
+def get_heuristic(board, goal):
+    b = (e for row in board for e in row)
+    if b in heuristics:
+        return heuristics.get(b)
+
+    print("board: ", board)
+
+    h = 0
+    for i in range(0, len(board)):
+        for j in range(0, len(board[i])):
+            h += heuristic([i, j], find_element_position(goal, board[i][j]))
+            
+    heuristics[b] = h
+    return h
 
 
 def heuristic(current_pos, goal_pos):
@@ -80,8 +140,9 @@ def main():
     n, length, zero_goal_position = read_input()
     goal_state = calculate_goal_state(length, zero_goal_position, n)
     board = init_board(length)
-    iterative_deepening_a_star(board, goal_state)
+    print(iterative_deepening_a_star(board, goal_state))
 
+    print("---------------------------")
     print(board)
     print(goal_state)
     print(get_neighbours(length, find_element_position(board, 0)))
