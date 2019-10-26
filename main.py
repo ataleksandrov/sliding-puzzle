@@ -6,15 +6,18 @@ from copy import deepcopy
 
 
 class Node:
-    def __init__(self, h_, board_):
-        self.h = h_
+    def __init__(self, f_, board_):
+        self.f = f_
         self.board = board_
         
     def __lt__(self, other):
-        return self.h < other.h
+        return self.f < other.f
+
+    def __gt__(self, other):
+        return self.f > other.f
     
     def __eq__(self, other):
-        return self.board == other.board
+        return tuple(self.board.flatten()) == tuple(other.board.flatten())
     
     def __hash__(self):
         return hash(frozenset(self.board))
@@ -74,60 +77,58 @@ def calculate_goal_state(length, zero_goal_position, n):
     return goal_state
 
 
-def iterative_deepening_a_star(board, goal):
+def iterative_deepening_a_star(board):
     max_fscore = 100
-    limit_fscore = get_heuristic(board, goal)
+    limit_fscore = get_heuristic(board)
     path = [board]
     while True:
         # print("Trying with:", limit_fscore)
-        found, fscore = search(goal, path, 0, limit_fscore)
-        if found:
-            return True, path, limit_fscore
+        fscore = search(path, 0, limit_fscore)
+        if fscore == 0:
+            return True, path
         if fscore == math.inf:
-            return False, [], 0
+            return False, []
         limit_fscore = fscore
         if limit_fscore >= max_fscore:
-            return False, [], limit_fscore
+            return False, []
         
 
-def search(goal, path, g, max_fscore):   
-    # print("PATH: ", path)    
+def search(path, steps, max_fscore):   
     state = path[-1]
-    fscore = g + get_heuristic(state, goal)
+    h = get_heuristic(state)
+    fscore = steps + h
+
     if fscore > max_fscore:
-        return False, fscore
-    if np.array_equal(state, goal):
-        return True, max_fscore
+        return fscore
+    if h == 0:
+        return 0
     
     min = math.inf
-    for s in successors(state, goal):
+    for s in successors(state, steps):
         if not is_visited(path, s.board):
             path.append(s.board)
-            found, f = search(goal, path, g + 1, max_fscore)
-            if found:
-                return True, max_fscore
+            f = search(path, steps + 1, max_fscore)
+            if f == 0:
+                return 0
             if f < min:
                 min = f
             path.pop()
-    return False, min
+    return min
                 
 
-def successors(board, goal):
+def successors(board, steps):
     zero_position = find_element_position(board, 0)
     possible_routes = get_neighbours(len(board[0]), zero_position)
     states = swap(board, possible_routes, zero_position)
-    ss = [Node(get_heuristic(state, goal), state) for state in states]
+    ss = [Node(get_heuristic(state)+steps, state) for state in states]
     heapq.heapify(ss)
-    # print("SS")
-    # for s in ss:
-    #     print(s.board)
-    # print()
     return ss
 
 
 def is_visited(path, p):
+    pf = p.flatten()
     for step in path:
-        if np.array_equal(step, p):
+        if len([i for i, j in zip(step.flatten(), pf) if i == j]) == len(pf):
             return True
     return False
 
@@ -141,51 +142,53 @@ def swap(board, possible_routes, zero_position):
     return states
    
 
-heuristics = {}
-
-
-def get_heuristic(board, goal):
-    b = tuple(board.flatten())
-    if b in heuristics:
-        return heuristics.get(b)
-    
+def get_heuristic(board):  
     h = 0
     for i in range(0, len(board)):
         for j in range(0, len(board[i])):
-            h += heuristic([i, j], find_element_position(goal, board[i][j]))
+            if board[i][j] == 0:
+                continue
+            h += heuristic([i, j], find_element_position(goal_state, board[i][j]))
     
-    heuristics[b] = h 
     return h
 
 
 def heuristic(current_pos, goal_pos):
     """ Manhattan distance """
     return abs(current_pos[0] - goal_pos[0]) + abs(current_pos[1] - goal_pos[1])
+
     
+goal_state = ''
+
 
 def main():
     n, length, zero_goal_position = read_input()
+    
+    global goal_state 
     goal_state = calculate_goal_state(length, zero_goal_position, n)
+    
     board = init_board(length)
+    
     start = time.time()
-    found, path, f = iterative_deepening_a_star(board, goal_state)
+    found, path = iterative_deepening_a_star(board)
     end = time.time()
+    
     print("Time: ", end - start)
     print("Found solution:", found)
-    # print(f)
-    print("Solution with length: ", len(path)-1)
-    print("Solution steps:")
-    for i in range(1, len(path)):
-        prev = find_element_position(path[i-1], 0)
-        curr = find_element_position(path[i], 0)
-        if curr[0] > prev[0]:
-            print("down")
-        if curr[0] < prev[0]:
-            print("up")
-        if curr[1] > prev[1]:
-            print("left")
-        if curr[1] < prev[1]:
-            print("right")
+    if len(path)-1 >= 0:
+        print("Solution with length: ", len(path)-1)
+        print("Solution steps:")
+        for i in range(1, len(path)):
+            prev = find_element_position(path[i-1], 0)
+            curr = find_element_position(path[i], 0)
+            if curr[0] > prev[0]:
+                print("up")
+            if curr[0] < prev[0]:
+                print("down")
+            if curr[1] > prev[1]:
+                print("left")
+            if curr[1] < prev[1]:
+                print("right")
             
 
 if __name__ == "__main__":
